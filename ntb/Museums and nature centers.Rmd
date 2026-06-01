@@ -1,0 +1,538 @@
+---
+title: "Museums and Nature Centers"
+author: "Tim Vlek"
+date: "`r Sys.Date()`"
+output: html_document:
+    df_print: paged
+---
+
+```{r data, message=FALSE}
+
+# library(caret)
+# library(data.table)
+library(dplyr)
+library(forcats) 
+library(ggplot2)
+library(plotrix)
+library(stringr)
+library(tidyr)
+# library(tidymodels)
+# library(tidyverse)
+```
+
+
+# Data Exploration
+
+
+## 1. Load file as data frame.
+```{r load, message=FALSE}
+museums_df <- read.csv("./data/raw/museums.csv")
+```
+
+
+## 2. Inspect data frame.
+```{r inspect, message=FALSE}
+head(museums_df)
+```
+
+
+# Museums by Type
+
+## 3. Create and print bar plot by type.
+```{r barplot, message=FALSE}
+museum_type <- 
+  ggplot(
+    data = museums_df, 
+    aes(
+      x = fct_infreq(Museum.Type), 
+      fill = Museum.Type, 
+    )
+  ) +
+  geom_bar() + 
+  geom_hline(yintercept = 0) + 
+  labs(
+    title = "Frequency of museum types", 
+    x = "", 
+    y = "", 
+  ) +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 90), 
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  ) +
+
+  # 4.
+  scale_x_discrete(
+    labels = function(x) {
+      x <- recode(
+        x,
+        "SCIENCE & TECHNOLOGY MUSEUM OR PLANETARIUM" = "SCIENCE AND TECHNOLOGY",
+        "ZOO, AQUARIUM, OR WILDLIFE CONSERVATION" = "WILDLIFE CONSERVATION",
+        "ARBORETUM, BOTANICAL GARDEN, OR NATURE CENTER" = "NATURE CENTER"
+      )
+      str_to_sentence(x)
+    }
+  ) +
+  scale_y_continuous(labels = scales::comma)
+
+museum_type
+```
+
+
+## 5. Create and print bar plot by museum vs non-museum.
+```{r barplot_museum, message=FALSE}
+museum_class <-
+  ggplot(
+    data = museums_df, 
+    aes(
+      x = Is.Museum, 
+      fill = Is.Museum, 
+    ),
+  ) +
+  geom_bar() +
+  geom_hline(yintercept = 0) + 
+  labs(
+    title = "Frequency of museums and nature centers",
+    y = "", 
+    x = "", 
+  ) +
+  scale_fill_discrete(
+    name = "Type of museum", 
+    labels = c("Museum", "Nature center"), 
+  ) + 
+  scale_x_discrete(
+    labels = c(
+      "TRUE" = "Museum", 
+      "FALSE" = "Nature center"
+    )
+  ) + 
+  scale_y_continuous(labels = scales::comma) + 
+  theme_minimal() + 
+  theme(
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  )
+museum_class
+```
+
+
+## 6. Create barplot with facets by state.
+```{r barplot_type, message=FALSE}
+# 6a. Filter data frame to select states.
+museums_states <- museums_df %>%
+ filter(
+   State..Administrative.Location. == "LA" |
+   State..Administrative.Location. == "CA" |
+   State..Administrative.Location. == "NY" 
+  ) %>%
+  mutate(
+    State..Administrative.Location. = factor(
+      State..Administrative.Location., 
+      levels = c( "NY", "CA", "LA")
+    )
+  )
+
+# 6b. Create and print bar plot with facets.
+museum_facet <- ggplot(
+  data = museums_states, 
+  aes(
+    x = Is.Museum, 
+    fill = Is.Museum, 
+    )
+  ) + 
+  geom_bar() + 
+  geom_hline(yintercept = 0) + 
+  labs(
+    title = "Frequency of museums and non-museums in California, New York, and Louisiana", 
+    y = "", 
+    x = "", 
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "TRUE" = "Museum", 
+      "FALSE" = "Nature center"
+    )
+  ) + 
+  scale_fill_discrete(
+    name = "", 
+    labels = c("Museum", "Non-museum"), 
+  ) +
+  facet_grid(cols = vars(State..Administrative.Location.)) + 
+  scale_y_continuous(labels = scales::comma) + 
+  theme_minimal() + 
+  theme(
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  )
+
+museum_facet
+```
+
+```{r barplot_type, message=FALSE}
+# Count number of museums per state
+state_order <- museums_df %>%
+  group_by(State..Administrative.Location.) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  pull(State..Administrative.Location.)
+
+# Make State a factor in descending order
+museums_df$State..Administrative.Location. <- factor(
+  museums_df$State..Administrative.Location.,
+  levels = state_order
+)
+
+# Now plot
+ggplot(museums_df, aes(x = Is.Museum, fill = Is.Museum)) +
+  geom_bar() +
+  facet_grid(cols = vars(State..Administrative.Location.)) +
+  scale_x_discrete(labels = c("TRUE" = "Museum", "FALSE" = "Non-museum")) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    legend.position = "none",
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color = "grey80")
+  )
+```
+
+## 7. Create and print stacked bar plot
+```{r barplot_stack, message=FALSE}
+museum_stacked <- ggplot(
+  data = museums_df,
+  aes(
+    x = factor(Region.Code..AAM.), 
+    fill = Is.Museum
+      )
+    ) + 
+  
+  # 9a.
+  geom_bar(position="fill") +
+  geom_hline(yintercept = 0) + 
+
+  # 8a. 
+  scale_x_discrete(
+    labels = c(
+      "1" = "New England", 
+      "2" = "Mid-Atlantic", 
+      "3" = "Southeastern", 
+      "4" = "Midwest",
+      "5" = "Mountain Plains",
+      "6" = "Western"
+      )
+    ) + 
+
+  # 8b. 
+  scale_fill_discrete(labels = c("Museum", "Non-museum")) + 
+  
+  # 9b.
+  scale_y_continuous(labels = scales::percent_format()) + 
+
+  # 10.
+  labs(
+    title = "Regional frequencies of museum types", 
+    x = "", 
+    y = "",
+    fill = "Type", 
+    ) + 
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(
+      angle = 90, 
+      hjust = 1,
+    ), 
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  )
+
+museum_stacked
+```
+
+
+# Museums by Revenue
+
+## 11a. Filter data frame
+```{r process, message=FALSE}
+museums_revenue_df <- 
+  museums_df %>% 
+  distinct(
+    Legal.Name, 
+    .keep_all = TRUE
+    ) %>% 
+  filter(Annual.Revenue > 0)
+
+museums_revenue_df
+
+# 11b. Filter for only small museums
+museums_small_df <- 
+  museums_revenue_df %>% 
+  filter(Annual.Revenue < 1000000)
+
+# 11c. Filter for only large museums
+museums_large_df <- 
+  museums_revenue_df %>% 
+  filter(Annual.Revenue > 1000000000)
+
+museums_large_df
+```
+
+
+## 12. Create and print histogram
+```{r histogram, message=FALSE}
+revenue_histogram <- 
+  ggplot(
+    data = museums_small_df, 
+    aes(x = Annual.Revenue), 
+   ) + 
+  labs(
+    title = "Distribution of museum revenue", 
+    x = "", 
+    y = "", 
+  ) +
+  geom_histogram(
+    binwidth = 1000000/50, 
+    color = "#00BFC4", 
+    fill = "#00BFC4", 
+  ) +
+  geom_hline(yintercept = 0) + 
+  theme_minimal() + 
+  theme(
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  ) + 
+  
+  # 13.
+#   scale_x_continuous(labels = function(x) paste0("$", x/1e3, "K"))
+  scale_fill_discrete(name = "Type of museum") +
+  scale_y_continuous(labels = scales::comma) + 
+  scale_x_continuous(
+    labels = scales::dollar_format(
+      prefix = "$", 
+      big.mark = ",", 
+      scale = 1e-3, 
+      suffix = "K"
+    )
+  )
+
+revenue_histogram
+```
+
+
+# 14. Create and print boxplot
+```{r boxplot, message=FALSE}
+
+revenue_boxplot <-
+  ggplot(
+    data = museums_large_df, 
+    aes(
+      x = factor(Region.Code..AAM.), 
+      y = Annual.Revenue, 
+      fill = factor(Region.Code..AAM.)
+    )
+  ) + 
+  geom_boxplot() + 
+  geom_hline(yintercept = 0) + 
+  labs(
+    title = "Distribution of regional revenue for large museums",
+    x = "",
+    y = "", 
+  ) + 
+  scale_fill_discrete(
+    name = "Region", 
+    labels = c(
+      "1" = "New England", 
+      "2" = "Mid-Atlantic", 
+      "3" = "Southeastern", 
+      "4" = "Midwest",
+      "5" = "Mountain Plains",
+      "6" = "Western"
+    )
+  ) + 
+  scale_x_discrete(
+    labels = c(
+      "1" = "New England", 
+      "2" = "Mid-Atlantic", 
+      "3" = "Southeastern", 
+      "4" = "Midwest",
+      "5" = "Mountain Plains",
+      "6" = "Western"
+    )
+  ) +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(
+      angle = 90, 
+      hjust = 1, 
+    ), 
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  ) +
+
+  # 15.
+  coord_cartesian(ylim = c(1e9, 3e10)) + 
+
+  # 16. 
+  scale_y_continuous(
+    labels = scales::dollar_format(
+      prefix = "$", 
+      big.mark = ",", 
+      scale = 1e-9, 
+      suffix = "B",
+      accuracy = 1, 
+    )
+  )
+
+revenue_boxplot
+```
+
+
+# 17. Create and print bar plot with means
+```{r mean, message=FALSE}
+region_order <- museums_revenue_df %>%
+  group_by(Region.Code..AAM.) %>%
+  summarize(Mean.Revenue = mean(Annual.Revenue)) %>%
+  arrange(desc(Mean.Revenue)) %>%
+  pull(Region.Code..AAM.)
+
+museums_revenue_df <- museums_revenue_df %>%
+  mutate(Region.Code..AAM. = factor(
+    Region.Code..AAM., 
+    levels = region_order
+  ))
+
+revenue_barplot <-
+  ggplot(
+    data = museums_revenue_df,
+    aes(
+      x = factor(Region.Code..AAM.), 
+      y = Annual.Revenue,
+      fill = factor(Region.Code..AAM.)
+    )
+  ) +
+  geom_bar(
+    stat = "summary", 
+    fun = "mean"
+  ) +
+  geom_hline(yintercept = 0) + 
+  scale_x_discrete(
+    labels = c(
+      "1" = "New England", 
+      "2" = "Mid-Atlantic", 
+      "3" = "Southeastern", 
+      "4" = "Midwest",
+      "5" = "Mountain Plains",
+      "6" = "Western"
+      )
+    ) +
+  scale_y_continuous(
+    labels = scales::dollar_format(
+      prefix = "$", 
+      big.mark = ",", 
+      scale = 1e-6, 
+      suffix = "M",
+      accuracy = 1, 
+    )
+  ) + 
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(
+      angle = 90, 
+      hjust = 1, 
+    ), 
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  ) +
+
+  # 18.
+  labs(
+    title = "Average annual revenue by region",
+    x = "", 
+    y = "", 
+  )
+
+revenue_barplot
+```
+
+
+# 19a. Calculate means and standard errors
+```{r mean_errorbar, message=FALSE}
+museums_error_df <- 
+  museums_revenue_df %>%
+  group_by(Region.Code..AAM.) %>%
+  summarize(
+    Mean.Revenue = mean(Annual.Revenue), 
+    Mean.SE = std.error(Annual.Revenue)
+    ) %>%
+  mutate(
+    SE.Min = Mean.Revenue - Mean.SE, 
+    SE.Max = Mean.Revenue + Mean.SE
+    )
+
+museums_error_df
+
+# 19b. Create and print bar plot with means and standard errors
+revenue_errorbar <- 
+    ggplot(
+      data = museums_error_df,
+      aes(
+        x = factor(Region.Code..AAM.), 
+        y = Mean.Revenue,
+        fill = factor(Region.Code..AAM.)
+      )
+    ) + 
+  geom_bar(stat = "identity") +
+  geom_errorbar(
+    aes(
+      ymin = SE.Min, 
+      ymax = SE.Max
+    ), 
+    width = 0.2
+  ) + 
+  geom_hline(yintercept = 0) +
+  labs(
+    title = "Average annual revenue by region",
+    x = "", 
+    y = ""
+  ) + 
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(
+      angle = 90, 
+      hjust = 1, 
+    ), 
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.major.y = element_line(color = "grey80"), 
+  ) + 
+  scale_x_discrete(
+    labels = c(
+      "1" = "New England", 
+      "2" = "Mid-Atlantic", 
+      "3" = "Southeastern", 
+      "4" = "Midwest",
+      "5" = "Mountain Plains",
+      "6" = "Western"
+      )
+    ) +
+  scale_y_continuous(labels = function(x) paste0("$", x/1e6, "M"))
+
+revenue_errorbar
+```
